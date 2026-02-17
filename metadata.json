@@ -1,0 +1,5 @@
+{
+  "name": "VoxelGen AI",
+  "description": "A cutting-edge 3D voxel model generator powered by Gemini AI. Describe anything, and the AI will build it block-by-block in a responsive 3D workspace.",
+  "requestFramePermissions": []
+}
