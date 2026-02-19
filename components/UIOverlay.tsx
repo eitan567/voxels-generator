@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { GenerationStatus, VoxelModel, AnimationType, ModelCategory } from '../types';
 
@@ -27,8 +28,8 @@ interface UIOverlayProps {
   setEditTool: (v: 'paint' | 'erase') => void;
   brushColor: string;
   setBrushColor: (v: string) => void;
-  genOptions: { style: string, complexity: string };
-  setGenOptions: (v: { style: string, complexity: string }) => void;
+  genOptions: { style: string, density: string };
+  setGenOptions: (v: { style: string, density: string }) => void;
   jointStiffness: number;
   setJointStiffness: (v: number) => void;
 }
@@ -173,7 +174,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
              </div>
           )}
 
-          {/* Always show style/complexity before model is finalized */}
+          {/* Always show style/density before model is finalized */}
           {!model && (
             <>
               <div>
@@ -192,15 +193,15 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               </div>
               <div className="h-px bg-slate-800/50"></div>
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase mb-2 block tracking-widest">Detail</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase mb-2 block tracking-widest">Grid Density</label>
                 <div className="flex gap-1.5">
-                  {['Simple', 'Detailed'].map(c => (
+                  {['Low', 'Medium', 'High'].map(d => (
                     <button 
-                      key={c}
-                      onClick={() => setGenOptions({ ...genOptions, complexity: c })}
-                      className={`text-[10px] font-black flex-1 px-3 py-1.5 rounded-xl text-center transition-all ${genOptions.complexity === c ? 'bg-blue-500 text-white shadow-lg' : 'bg-slate-800/50 text-slate-500 hover:text-slate-400'}`}
+                      key={d}
+                      onClick={() => setGenOptions({ ...genOptions, density: d })}
+                      className={`text-[10px] font-black flex-1 px-3 py-1.5 rounded-xl text-center transition-all ${genOptions.density === d ? 'bg-blue-500 text-white shadow-lg' : 'bg-slate-800/50 text-slate-500 hover:text-slate-400'}`}
                     >
-                      {c.toUpperCase()}
+                      {d.toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -351,7 +352,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                          <i className={`fas ${m.category === 'object' ? 'fa-cube' : m.category === 'animal' ? 'fa-paw' : 'fa-user'} text-3xl text-slate-700 group-hover:text-cyan-500/50 transition-colors`}></i>
                          
                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-slate-800 border border-white/10 text-[8px] font-black text-slate-400 uppercase tracking-wider">
-                           {m.metadata?.complexity || 'UNK'}
+                           {m.metadata?.density || 'UNK'}
                          </div>
                       </div>
                       

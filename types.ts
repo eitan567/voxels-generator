@@ -20,7 +20,8 @@ export interface VoxelModel {
   category: ModelCategory;
   animation?: AnimationType;
   metadata?: {
-    complexity: string;
+    complexity?: string;
+    density?: string;
     description: string;
     createdAt: number;
     suggestedAnimation?: AnimationType;

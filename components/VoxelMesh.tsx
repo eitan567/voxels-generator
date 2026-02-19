@@ -15,11 +15,11 @@ interface VoxelMeshProps {
   jointStiffness?: number;
 }
 
-const PhysicalVoxel = ({ voxel, originalIndex, onVoxelClick, isEditMode, jointStiffness = 0.5 }: any) => {
+const PhysicalVoxel = ({ voxel, originalIndex, onVoxelClick, isEditMode, jointStiffness = 0.5, scale = 1 }: any) => {
   const [ref] = useBox(() => ({
-    mass: 1,
-    position: [voxel.x, voxel.y, voxel.z],
-    args: [0.95, 0.95, 0.95],
+    mass: 1 * scale, // Scale mass with size
+    position: [voxel.x * scale, voxel.y * scale, voxel.z * scale],
+    args: [scale, scale, scale], 
     linearDamping: 0.1 + (jointStiffness * 0.5),
     angularDamping: 0.1 + (jointStiffness * 0.5),
   }));
@@ -36,7 +36,7 @@ const PhysicalVoxel = ({ voxel, originalIndex, onVoxelClick, isEditMode, jointSt
         }
       }}
     >
-      <boxGeometry args={[0.95, 0.95, 0.95]} />
+      <boxGeometry args={[scale, scale, scale]} />
       <meshStandardMaterial 
         color={voxel.color} 
         roughness={0.5} 
@@ -58,40 +58,71 @@ const VoxelMesh: React.FC<VoxelMeshProps> = ({
   const rootGroupRef = useRef<THREE.Group>(null);
   const partsRefs = useRef<Record<string, THREE.Group | null>>({});
 
-  const { groupedVoxels, centerOffset, partPivots } = useMemo(() => {
+  const { groupedVoxels, centerOffset, partPivots, modelScale } = useMemo(() => {
     const groups: Partial<Record<BodyPart, { voxel: Voxel; originalIndex: number }[]>> = {};
     const pivots: Record<string, THREE.Vector3> = {};
     
     let minX = Infinity, minY = Infinity, minZ = Infinity;
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
+    // Group voxels by part and find global bounds
     voxels.forEach((v, i) => {
       if (!groups[v.part]) groups[v.part] = [];
       groups[v.part]!.push({ voxel: v, originalIndex: i });
       
-      minX = Math.min(minX, v.x); minY = Math.min(minY, v.y); minZ = Math.min(minZ, v.z);
-      maxX = Math.max(maxX, v.x); maxY = Math.max(maxY, v.y); maxZ = Math.max(maxZ, v.z);
+      if (v.x < minX) minX = v.x;
+      if (v.y < minY) minY = v.y;
+      if (v.z < minZ) minZ = v.z;
+      
+      if (v.x > maxX) maxX = v.x;
+      if (v.y > maxY) maxY = v.y;
+      if (v.z > maxZ) maxZ = v.z;
     });
 
+    // Determine scale to fit model within standard stage size (approx 16 units)
+    const sizeX = maxX - minX;
+    const sizeY = maxY - minY;
+    const sizeZ = maxZ - minZ;
+    const maxDimension = Math.max(sizeX, sizeY, sizeZ);
+    const targetSize = 16;
+    // If the model is dense (e.g. 100 voxels wide), scale each voxel down to fit.
+    const scale = maxDimension > targetSize ? targetSize / maxDimension : 1;
+
+    // Calculate pivots using the normalized scale
     Object.entries(groups).forEach(([part, data]) => {
-      if (!data) return;
-      const pVoxels = data.map(d => d.voxel);
-      const partMinY = Math.min(...pVoxels.map(v => v.y));
-      const partMaxY = Math.max(...pVoxels.map(v => v.y));
-      const partCenterX = (Math.min(...pVoxels.map(v => v.x)) + Math.max(...pVoxels.map(v => v.x))) / 2;
-      const partCenterZ = (Math.min(...pVoxels.map(v => v.z)) + Math.max(...pVoxels.map(v => v.z))) / 2;
+      if (!data || data.length === 0) return;
       
-      let pivotY = (partMinY + partMaxY) / 2;
-      if (part.includes('leg') || part.includes('arm')) pivotY = partMaxY;
-      if (part === 'head') pivotY = partMinY;
+      let partMinX = Infinity, partMaxX = -Infinity;
+      let partMinY = Infinity, partMaxY = -Infinity;
+      let partMinZ = Infinity, partMaxZ = -Infinity;
+
+      for (let i = 0; i < data.length; i++) {
+        const v = data[i].voxel;
+        if (v.x < partMinX) partMinX = v.x;
+        if (v.x > partMaxX) partMaxX = v.x;
+        if (v.y < partMinY) partMinY = v.y;
+        if (v.y > partMaxY) partMaxY = v.y;
+        if (v.z < partMinZ) partMinZ = v.z;
+        if (v.z > partMaxZ) partMaxZ = v.z;
+      }
+      
+      // Pivot calculation must respect scaling if applied at group level, 
+      // but here we scale the transform position.
+      const partCenterX = ((partMinX + partMaxX) / 2) * scale;
+      const partCenterZ = ((partMinZ + partMaxZ) / 2) * scale;
+      
+      let pivotY = ((partMinY + partMaxY) / 2) * scale;
+      if (part.includes('leg') || part.includes('arm')) pivotY = partMaxY * scale;
+      if (part === 'head') pivotY = partMinY * scale;
 
       pivots[part] = new THREE.Vector3(partCenterX, pivotY, partCenterZ);
     });
 
     return {
       groupedVoxels: groups as Record<BodyPart, { voxel: Voxel; originalIndex: number }[]>,
-      centerOffset: [-(minX + maxX) / 2, -minY, -(minZ + maxZ) / 2],
-      partPivots: pivots
+      centerOffset: [(-(minX + maxX) / 2) * scale, -minY * scale, (-(minZ + maxZ) / 2) * scale],
+      partPivots: pivots,
+      modelScale: scale
     };
   }, [voxels]);
 
@@ -205,6 +236,7 @@ const VoxelMesh: React.FC<VoxelMeshProps> = ({
             onVoxelClick={onVoxelClick}
             isEditMode={isEditMode}
             jointStiffness={jointStiffness}
+            scale={modelScale}
           />
         ))}
       </group>
@@ -225,7 +257,7 @@ const VoxelMesh: React.FC<VoxelMeshProps> = ({
               {data.map(({voxel, originalIndex}) => (
                 <mesh 
                   key={`${originalIndex}-${voxel.x}-${voxel.y}-${voxel.z}`} 
-                  position={[voxel.x, voxel.y, voxel.z]} 
+                  position={[voxel.x * modelScale, voxel.y * modelScale, voxel.z * modelScale]} 
                   castShadow 
                   receiveShadow
                   onClick={(e) => {
@@ -235,7 +267,7 @@ const VoxelMesh: React.FC<VoxelMeshProps> = ({
                     }
                   }}
                 >
-                  <boxGeometry args={[0.95, 0.95, 0.95]} />
+                  <boxGeometry args={[modelScale, modelScale, modelScale]} />
                   <meshStandardMaterial 
                     color={voxel.color} 
                     roughness={0.5} 

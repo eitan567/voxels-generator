@@ -51,7 +51,8 @@ const App: React.FC = () => {
   
   // New States
   const [conceptImage, setConceptImage] = useState<string | null>(null);
-  const [genOptions, setGenOptions] = useState({ style: 'Modern', complexity: 'Detailed' });
+  // Changed complexity to density
+  const [genOptions, setGenOptions] = useState({ style: 'Modern', density: 'Medium' });
   
   // Edit & Physics State
   const [isEditMode, setIsEditMode] = useState(false);
@@ -103,7 +104,7 @@ const App: React.FC = () => {
         animation: modelData.metadata?.suggestedAnimation || 'none',
         category: category,
         metadata: {
-          complexity: genOptions.complexity,
+          density: genOptions.density,
           description: activePrompt,
           createdAt: Date.now(),
           suggestedAnimation: modelData.metadata?.suggestedAnimation

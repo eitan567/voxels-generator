@@ -5,7 +5,7 @@ import { VoxelModel, ModelCategory, AnimationType, Voxel } from "../types";
 export const generateVoxelImage = async (
   prompt: string,
   category: ModelCategory,
-  options: { style: string, complexity: string } = { style: 'Modern', complexity: 'Detailed' }
+  options: { style: string, density: string } = { style: 'Modern', density: 'Medium' }
 ): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
@@ -81,26 +81,51 @@ export const generateVoxelModel = async (
   prompt: string, 
   category: ModelCategory,
   imageBase64?: string, 
-  options: { style: string, complexity: string } = { style: 'Modern', complexity: 'Detailed' }
+  options: { style: string, density: string } = { style: 'Modern', density: 'Medium' }
 ): Promise<VoxelModel> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const modelName = 'gemini-3-flash-preview';
   
   // Construct a prompt that forces "Box" based construction rather than point-cloud
   let strategy = "";
+  let resolutionInstructions = "";
+
+  if (options.density === 'High') {
+    resolutionInstructions = `
+    **RESOLUTION SETTING: HIGH DENSITY (Max 100x100x100)**
+    - Coordinate Space: 0 to 100.
+    - Target: High detail, smooth curves.
+    - **CRITICAL OPTIMIZATION**: You MUST use large 'box' elements for the internal volume of the model. 
+      Only use small 1x1x1 boxes for the outer surface details.
+      If you output thousands of single voxels, the generation will fail.
+    `;
+  } else if (options.density === 'Medium') {
+    resolutionInstructions = `
+    **RESOLUTION SETTING: MEDIUM DENSITY (Max 60x60x60)**
+    - Coordinate Space: 0 to 60.
+    - Balanced detail. Use boxes to define major shapes and some details.
+    `;
+  } else {
+    resolutionInstructions = `
+    **RESOLUTION SETTING: LOW DENSITY (Max 30x30x30)**
+    - Coordinate Space: 0 to 30.
+    - Focus on low-poly, chunky shapes. Use large blocks.
+    `;
+  }
+
   if (category === 'character') {
       strategy = `
       CONSTRUCTION STRATEGY (BLOCKING):
-      1. **Base Mesh**: Define the character using LARGE, SOLID CUBOIDS (Boxes).
-         - e.g., A box for the Head, a box for the Torso, boxes for Legs.
-         - **Torso**: Must be thick (Z-depth > 3).
+      1. **Base Mesh**: Define the character using SOLID CUBOIDS (Boxes).
+         - **Torso**: Must be thick.
          - **Head**: Must be a solid block.
-      2. **Details**: Add individual voxels ONLY for fine details like eyes, buttons, or hair tips.
+      2. **Refinement**: Stack smaller boxes to create rounded edges, hair, and clothing details.
       `;
   } else {
       strategy = `
       CONSTRUCTION STRATEGY:
       Decompose the object into solid primitive boxes.
+      Use smaller boxes to round off corners and add surface texture.
       `;
   }
 
@@ -112,6 +137,7 @@ export const generateVoxelModel = async (
     An element can be a 'box' (which fills a region) or a 'voxel' (single point).
 
     ${strategy}
+    ${resolutionInstructions}
 
     **OPTIMIZATION IS CRITICAL:**
     - **MERGE VOXELS**: Always use the largest possible 'box' to represent volumes of the same color.
@@ -125,10 +151,8 @@ export const generateVoxelModel = async (
     - **ENSURE SOLIDITY**: Do not leave gaps between the head and body. Overlap coordinates if necessary to ensure connection.
 
     COORDINATE SYSTEM:
-    - X: Left/Right (Width)
-    - Y: Up/Down (Height). 0 is the floor.
-    - Z: Forward/Back (Depth).
-    - Center the model roughly at X=0, Z=0.
+    - X, Y, Z axes must be within 0 and 100.
+    - Center the model roughly within this range.
 
     Output pure JSON matching the schema.
   `;
@@ -240,7 +264,8 @@ export const generateVoxelModel = async (
         animation: parsed.suggestedAnimation,
         voxels: finalVoxels,
         metadata: {
-            complexity: options.complexity,
+            density: options.density,
+            complexity: options.density, // Keep complexity populated for legacy check
             description: prompt,
             createdAt: Date.now(),
             suggestedAnimation: parsed.suggestedAnimation
@@ -251,7 +276,7 @@ export const generateVoxelModel = async (
     console.error("Voxel Model Generation Error:", error);
     // Provide a more user-friendly error if it's a JSON parse error (likely truncation)
     if (error instanceof SyntaxError) {
-        throw new Error("Model is too complex. Please try 'Simple' detail or a shorter prompt.");
+        throw new Error("Model is too complex. Please try 'Low' density or a shorter prompt.");
     }
     throw new Error("Failed to construct 3D model. Please try again.");
   }
